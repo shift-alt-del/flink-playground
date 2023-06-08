@@ -1,14 +1,14 @@
 # Flink playground
 
 
-Start docker-compose
+Start docker-compose:
 
 ```
 source ./env.sh
 docker-compose up -d
 ```
 
-Compile jar file
+Compile jar file:
 
 ```
 mvn compile assembly:single
