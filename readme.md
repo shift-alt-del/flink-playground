@@ -14,6 +14,18 @@ Compile jar file:
 mvn compile assembly:single
 ```
 
+Create input topic and output topic
+
+```
+docker exec -it broker kafka-topics --create \                                         
+    --bootstrap-server localhost:9092 \
+    --topic input-topic
+
+docker exec -it broker kafka-topics --create \                                         
+    --bootstrap-server localhost:9092 \
+    --topic output-topic
+```
+
 Submit job:
 
 ```
