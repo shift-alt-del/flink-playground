@@ -1,9 +1,15 @@
 
+import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.api.common.serialization.SimpleStringSchema;
+import org.apache.flink.connector.base.DeliveryGuarantee;
+import org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchema;
+import org.apache.flink.connector.kafka.sink.KafkaSink;
+import org.apache.flink.connector.kafka.source.KafkaSource;
+import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaProducer;
-import org.apache.flink.streaming.util.serialization.SimpleStringSchema;
 
 import java.util.Properties;
 
@@ -13,41 +19,24 @@ public class FlinkETLJob {
         // Set up the execution environment
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-        // Configure Kafka consumer properties
-        Properties consumerProps = new Properties();
-        consumerProps.setProperty("bootstrap.servers", "broker:9092");
-        consumerProps.setProperty("group.id", "flink-consumer-group");
-
-        // Create a Kafka consumer
-        FlinkKafkaConsumer<String> kafkaConsumer = new FlinkKafkaConsumer<>(
-                "input-topic",
-                new SimpleStringSchema(),
-                consumerProps
-        );
-
-        // Add the Kafka consumer as a data source
-        DataStream<String> inputStream = env.addSource(kafkaConsumer);
-
-        // Apply your ETL logic
-        DataStream<String> transformedStream = inputStream.map(data -> {
-            // Perform your ETL transformation here
-            // For example, convert data to uppercase
-            return data.toUpperCase();
-        });
-
-        // Configure Kafka producer properties
-        Properties producerProps = new Properties();
-        producerProps.setProperty("bootstrap.servers", "broker:9092");
-
-        // Create a Kafka producer
-        FlinkKafkaProducer<String> kafkaProducer = new FlinkKafkaProducer<>(
-                "output-topic",
-                new SimpleStringSchema(),
-                producerProps
-        );
-
-        // Add the Kafka producer as a data sink
-        transformedStream.addSink(kafkaProducer);
+        // https://nightlies.apache.org/flink/flink-docs-master/docs/connectors/datastream/kafka/
+        env.fromSource(KafkaSource.<String>builder()
+                                .setBootstrapServers("broker:9092")
+                                .setTopics("input-topic")
+                                .setGroupId("flink-consumer-group")
+                                .setStartingOffsets(OffsetsInitializer.earliest())
+                                .setValueOnlyDeserializer(new SimpleStringSchema())
+                                .build(),
+                        WatermarkStrategy.noWatermarks(), "Kafka source")
+                .map(String::toUpperCase)
+                .sinkTo(KafkaSink.<String>builder()
+                        .setBootstrapServers("broker:9092")
+                        .setRecordSerializer(KafkaRecordSerializationSchema.builder()
+                                .setTopic("output-topic")
+                                .setValueSerializationSchema(new SimpleStringSchema())
+                                .build())
+                        .setDeliveryGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
+                        .build());
 
         // Execute the Flink job
         env.execute("Flink ETL Job");
