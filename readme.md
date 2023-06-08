@@ -51,4 +51,5 @@ kafka-console-consumer --bootstrap-server localhost:9092 --topic output-topic --
 ```
 
 ## Refer
+- https://nightlies.apache.org/flink/flink-docs-master/docs/connectors/datastream/kafka/
 - https://github.com/apache/flink/tree/master/flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples
