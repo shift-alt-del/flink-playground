@@ -1,0 +1,99 @@
+
+---
+version: '3.8'
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:${CP_VERSION}
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - i-am-a-network
+
+  broker:
+    image: confluentinc/cp-kafka:${CP_VERSION}
+    hostname: broker
+    container_name: broker
+    depends_on:
+      - zookeeper
+    ports:
+      - "9091:9091"
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+
+      # Only has 1 broker here.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: BROKER_LOCAL:PLAINTEXT,BROKER:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: BROKER_LOCAL://localhost:9091,BROKER://broker:9092
+
+      KAFKA_INTER_BROKER_LISTENER_NAME: BROKER
+    networks:
+      - i-am-a-network
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:${CP_VERSION}
+    hostname: schema-registry
+    container_name: schema-registry
+    depends_on:
+      - zookeeper
+      - broker
+    ports:
+      - "8081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "broker:9092"
+    networks:
+      - i-am-a-network
+
+  jobmanager:
+    image: 'apache/flink:${FLINK_VERSION}-scala_${FLINK_SCALA_VERSION}'
+    container_name: jobmanager
+    command: jobmanager
+    ports:
+      - '18081:8081'
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: jobmanager        
+        state.backend: hashmap
+    networks:
+      - i-am-a-network
+
+  taskmanager:
+    image: 'apache/flink:${FLINK_VERSION}-scala_${FLINK_SCALA_VERSION}'
+    container_name: taskmanager
+    command: taskmanager
+    depends_on:
+      - jobmanager
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: jobmanager        
+        state.backend: hashmap
+        taskmanager.numberOfTaskSlots: 6
+        taskmanager.memory.process.size: 4gb
+    networks:
+      - i-am-a-network
+
+  sql-client:
+    image: 'apache/flink:${FLINK_VERSION}-scala_${FLINK_SCALA_VERSION}'
+    container_name: sql-client
+    command: /bin/bash
+    depends_on:
+      - jobmanager
+    environment:
+      FLINK_REST_ADDRESS: 'http://jobmanager:8081'
+      DISABLE_JEMALLOC: 'true'
+    stdin_open: true
+    tty: true
+    networks:
+      - i-am-a-network
+
+networks:
+  i-am-a-network:
